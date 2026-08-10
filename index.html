@@ -191,7 +191,7 @@
 
         </main>
 
-        <!-- RIGHT SIDEBAR: SZYBKI MAIL + PRAWDZIWY KALENDARZ GOOGLE + AKTYWNY ASYSTENT AI -->
+        <!-- RIGHT SIDEBAR: SZYBKI MAIL + GOOGLE KALENDARZ + AI -->
         <aside class="w-80 glass-panel border-l border-slate-800 p-3.5 flex flex-col justify-between hidden xl:flex flex-shrink-0 overflow-y-auto space-y-4">
             
             <!-- SZYBKI MAIL -->
@@ -209,20 +209,23 @@
                 </button>
             </div>
 
-            <!-- PODGLĄD GOOGLE KALENDARZA NA ŻYWO -->
+            <!-- PODGLĄD GOOGLE KALENDARZA Z OPCJĄ USTAWENIA E-MAILA -->
             <div class="bg-slate-900/90 rounded-xl border border-slate-800 p-2.5 space-y-2 flex-1 flex flex-col min-h-[200px]">
                 <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
                     <span class="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
                         <i class="fa-solid fa-calendar-days text-amber-400"></i> Google Kalendarz
                     </span>
-                    <a href="https://calendar.google.com" target="_blank" class="text-[10px] text-blue-400 hover:underline"><i class="fa-solid fa-arrow-up-right-from-square"></i> Otwórz</a>
+                    <div class="flex items-center gap-2">
+                        <button onclick="setCalendarEmail()" class="text-[10px] text-amber-400 hover:underline"><i class="fa-solid fa-gear"></i> Ustaw e-mail</button>
+                        <a href="https://calendar.google.com" target="_blank" class="text-[10px] text-blue-400 hover:underline"><i class="fa-solid fa-arrow-up-right-from-square"></i> Otwórz</a>
+                    </div>
                 </div>
                 <div class="flex-1 rounded-lg overflow-hidden border border-slate-800 relative bg-slate-950">
-                    <iframe src="https://calendar.google.com/calendar/embed?mode=AGENDA&showTitle=0&showNav=0&showDate=1&showPrint=0&showTabs=0&showCalendars=0&showTz=0" class="w-full h-full border-none"></iframe>
+                    <iframe id="calendar-iframe" src="" class="w-full h-full border-none"></iframe>
                 </div>
             </div>
 
-            <!-- INTERAKTYWNY ASYSTENT AI KOMEND I PYTAŃ -->
+            <!-- ASYSTENT AI -->
             <div class="bg-gradient-to-br from-purple-950/40 to-slate-900 border border-purple-500/30 rounded-xl p-3 space-y-2">
                 <div class="flex items-center justify-between">
                     <span class="text-xs font-bold text-purple-300 flex items-center gap-1.5">
@@ -392,6 +395,7 @@
         let reminders = JSON.parse(localStorage.getItem('cc_reminders')) || [];
         let stickyOpen = JSON.parse(localStorage.getItem('cc_sticky_open')) ?? true;
         let apiKey = localStorage.getItem('cc_api_key') || '';
+        let calendarEmail = localStorage.getItem('cc_cal_email') || '';
 
         let activeCategory = 'all';
         let activeStatus = 'all';
@@ -402,6 +406,7 @@
             renderCards();
             renderNotes();
             renderReminders();
+            renderCalendarIframe();
             setupDragAndDrop();
             setupSearch();
             setupVoiceSearch();
@@ -429,6 +434,7 @@
             localStorage.setItem('cc_reminders', JSON.stringify(reminders));
             localStorage.setItem('cc_sticky_open', JSON.stringify(stickyOpen));
             localStorage.setItem('cc_api_key', apiKey);
+            localStorage.setItem('cc_cal_email', calendarEmail);
             updateStats();
         }
 
@@ -440,9 +446,28 @@
             document.getElementById('reminders-count').innerText = reminders.length;
         }
 
-        // AKTYWNA OBSŁUGA ASYSTENTA AI Z OBSŁUGĄ API I OPOWIEŚCI
+        // USTAWIANIE OSOBISTEGO KALENDARZA GOOGLE
+        function setCalendarEmail() {
+            const email = prompt("Wpisz swój e-mail z konta Google (lub Identyfikator kalendarza):", calendarEmail);
+            if (email !== null) {
+                calendarEmail = email.trim();
+                saveAll();
+                renderCalendarIframe();
+            }
+        }
+
+        function renderCalendarIframe() {
+            const iframe = document.getElementById('calendar-iframe');
+            if (calendarEmail) {
+                iframe.src = `https://calendar.google.com/calendar/embed?src=${encodeURIComponent(calendarEmail)}&mode=AGENDA&showTitle=0&showNav=0&showDate=1&showPrint=0&showTabs=0&showCalendars=0&showTz=0`;
+            } else {
+                iframe.src = `https://calendar.google.com/calendar/embed?mode=AGENDA&showTitle=0&showNav=0&showDate=1&showPrint=0&showTabs=0&showCalendars=0&showTz=0`;
+            }
+        }
+
+        // ASYSTENT AI
         function setApiKeyPrompt() {
-            const key = prompt("Wklej swój klucz API (np. OpenAI / Gemini) dla pełnego działania AI:", apiKey);
+            const key = prompt("Wklej swój klucz API (np. OpenAI / Gemini):", apiKey);
             if (key !== null) {
                 apiKey = key.trim();
                 saveAll();
@@ -468,7 +493,6 @@
             }
             else if (apiKey) {
                 output.innerText = "🤖 Łączenie z modelem AI...";
-                // Prawdziwe zapytanie API gdy wklejony klucz
                 fetch('https://api.openai.com/v1/chat/completions', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
