@@ -28,6 +28,11 @@
         .glass-card { background: rgba(26, 34, 51, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.06); transition: all 0.2s; }
         .glass-card:hover { transform: translateY(-2px); background: rgba(26, 34, 51, 0.95); border-color: rgba(59, 130, 246, 0.5); }
         .drop-zone-active { border-color: #3b82f6 !important; background: rgba(59, 130, 246, 0.15) !important; }
+        
+        .kanban-col-active { background: rgba(99, 102, 241, 0.15) !important; border-color: #6366f1 !important; }
+        .task-card { cursor: grab; }
+        .task-card:active { cursor: grabbing; }
+
         ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-track { background: #080b11; }
         ::-webkit-scrollbar-thumb { background: #253047; border-radius: 4px; }
@@ -39,6 +44,33 @@
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
+
+    <!-- BEZPIECZNY EKRAN POTWIERDZENIA ZADANIA DLA PRACOWNIKA (ZERO DOSTĘPU DO DASHBOARDU) -->
+    <div id="worker-done-screen" class="fixed inset-0 bg-slate-950/98 backdrop-blur-2xl z-50 flex items-center justify-center hidden p-4">
+        <div class="glass-panel max-w-md w-full rounded-2xl p-6 border border-emerald-500/30 text-center space-y-4 shadow-2xl relative">
+            <div class="w-14 h-14 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-2xl flex items-center justify-center mx-auto text-2xl">
+                <i class="fa-solid fa-check"></i>
+            </div>
+            
+            <div id="worker-active-box" class="space-y-3">
+                <h3 class="font-bold text-base text-white">Potwierdzenie Wykonania Zadania</h3>
+                <div class="bg-slate-900 border border-slate-800 p-3 rounded-xl text-left">
+                    <span class="text-[10px] text-slate-500 uppercase tracking-wider block font-bold mb-1">Szczegóły Zadania:</span>
+                    <p class="text-xs text-slate-200 font-medium" id="worker-done-desc">Ładowanie opisu zadania...</p>
+                </div>
+                <button onclick="confirmWorkerDoneAction()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs py-3 rounded-xl transition shadow-lg shadow-emerald-600/20">
+                    ✅ Oznacz to zadanie jako GOTOWE (DONE)
+                </button>
+            </div>
+
+            <!-- KOMUNIKAT PO ZATWIERDZENIU -->
+            <div id="worker-success-box" class="hidden space-y-2 py-4">
+                <h3 class="font-bold text-lg text-emerald-400">Dziękujemy!</h3>
+                <p class="text-xs text-slate-300">Zadanie zostało pomyślnie oznaczone jako wykonane w systemie przełożonego.</p>
+                <p class="text-[11px] text-slate-500 pt-2">Możesz bezpiecznie zamknąć tę kartę przeglądarki.</p>
+            </div>
+        </div>
+    </div>
 
     <!-- TOP HEADER -->
     <header class="glass-panel sticky top-0 z-40 px-6 py-3 flex items-center justify-between border-b border-slate-800">
@@ -70,7 +102,7 @@
         <!-- PRZYCISKI AKCJI NAGŁÓWKA -->
         <div class="flex items-center gap-2">
             <button onclick="openRemindersModal()" class="bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5">
-                <i class="fa-solid fa-bell"></i> Alerty / Przypomnienia (<span id="reminders-count">0</span>)
+                <i class="fa-solid fa-bell"></i> Alerty (<span id="reminders-count">0</span>)
             </button>
             <button onclick="openCardModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow-md shadow-blue-600/20">
                 <i class="fa-solid fa-plus"></i> Dodaj Kartę
@@ -123,7 +155,7 @@
         </aside>
 
         <!-- MAIN WORKSPACE -->
-        <main class="flex-1 overflow-y-auto p-5 space-y-5">
+        <main class="flex-1 overflow-y-auto p-5 space-y-6">
 
             <!-- PORANNA RUTYNA -->
             <section class="glass-panel rounded-2xl p-3.5 border border-slate-800 bg-gradient-to-r from-blue-950/30 via-slate-900 to-indigo-950/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
@@ -171,11 +203,65 @@
                 </div>
             </div>
 
-            <!-- GRID KART -->
+            <!-- GRID KART RAPORTÓW -->
             <section id="cards-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4"></section>
 
+            <!-- TABLICA KANBAN DLA PRACOWNIKÓW -->
+            <section class="pt-6 border-t border-slate-800/80 space-y-3">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-flipboard text-indigo-400 text-sm"></i>
+                        <h3 class="font-bold text-xs uppercase tracking-wider text-slate-200">Kanban Zadań Pracowników</h3>
+                    </div>
+                    <button onclick="openTaskModal()" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded-lg font-medium transition flex items-center gap-1 shadow-md shadow-indigo-600/20">
+                        <i class="fa-solid fa-plus"></i> Przypisz Zadanie
+                    </button>
+                </div>
+
+                <!-- KOLUMNY KANBAN DRAG & DROP -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                    
+                    <!-- TO DO -->
+                    <div class="bg-slate-900/60 rounded-xl border border-slate-800/80 p-2.5 flex flex-col space-y-2 kanban-drop-col" data-status="todo" ondragover="handleKanbanDragOver(event)" ondragleave="handleKanbanDragLeave(event)" ondrop="handleKanbanDrop(event, 'todo')">
+                        <div class="flex items-center justify-between pb-1 border-b border-slate-800 text-[11px] font-bold text-slate-300">
+                            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-slate-400"></span> Do zrobienia</span>
+                            <span id="count-todo" class="bg-slate-800 px-1.5 py-0.2 rounded text-[10px] font-mono text-slate-400">0</span>
+                        </div>
+                        <div id="col-todo" class="space-y-2 flex-1 min-h-[140px]"></div>
+                    </div>
+
+                    <!-- IN PROGRESS -->
+                    <div class="bg-slate-900/60 rounded-xl border border-slate-800/80 p-2.5 flex flex-col space-y-2 kanban-drop-col" data-status="progress" ondragover="handleKanbanDragOver(event)" ondragleave="handleKanbanDragLeave(event)" ondrop="handleKanbanDrop(event, 'progress')">
+                        <div class="flex items-center justify-between pb-1 border-b border-slate-800 text-[11px] font-bold text-amber-300">
+                            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-400"></span> W trakcie</span>
+                            <span id="count-progress" class="bg-slate-800 px-1.5 py-0.2 rounded text-[10px] font-mono text-slate-400">0</span>
+                        </div>
+                        <div id="col-progress" class="space-y-2 flex-1 min-h-[140px]"></div>
+                    </div>
+
+                    <!-- REVIEW -->
+                    <div class="bg-slate-900/60 rounded-xl border border-slate-800/80 p-2.5 flex flex-col space-y-2 kanban-drop-col" data-status="review" ondragover="handleKanbanDragOver(event)" ondragleave="handleKanbanDragLeave(event)" ondrop="handleKanbanDrop(event, 'review')">
+                        <div class="flex items-center justify-between pb-1 border-b border-slate-800 text-[11px] font-bold text-purple-300">
+                            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-purple-400"></span> Do weryfikacji</span>
+                            <span id="count-review" class="bg-slate-800 px-1.5 py-0.2 rounded text-[10px] font-mono text-slate-400">0</span>
+                        </div>
+                        <div id="col-review" class="space-y-2 flex-1 min-h-[140px]"></div>
+                    </div>
+
+                    <!-- DONE -->
+                    <div class="bg-slate-900/60 rounded-xl border border-slate-800/80 p-2.5 flex flex-col space-y-2 kanban-drop-col" data-status="done" ondragover="handleKanbanDragOver(event)" ondragleave="handleKanbanDragLeave(event)" ondrop="handleKanbanDrop(event, 'done')">
+                        <div class="flex items-center justify-between pb-1 border-b border-slate-800 text-[11px] font-bold text-emerald-300">
+                            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> Zrobione</span>
+                            <span id="count-done" class="bg-slate-800 px-1.5 py-0.2 rounded text-[10px] font-mono text-slate-400">0</span>
+                        </div>
+                        <div id="col-done" class="space-y-2 flex-1 min-h-[140px]"></div>
+                    </div>
+
+                </div>
+            </section>
+
             <!-- CHOWANE STICKY NOTES -->
-            <section class="pt-4 border-t border-slate-800/80">
+            <section class="pt-6 border-t border-slate-800/80">
                 <div class="flex items-center justify-between mb-3">
                     <button onclick="toggleStickyNotes()" class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-300 hover:text-white transition">
                         <i class="fa-solid fa-note-sticky text-amber-400"></i> 
@@ -191,7 +277,7 @@
 
         </main>
 
-        <!-- RIGHT SIDEBAR: SZYBKI MAIL + GOOGLE KALENDARZ + AI -->
+        <!-- RIGHT SIDEBAR -->
         <aside class="w-80 glass-panel border-l border-slate-800 p-3.5 flex flex-col justify-between hidden xl:flex flex-shrink-0 overflow-y-auto space-y-4">
             
             <!-- SZYBKI MAIL -->
@@ -251,7 +337,68 @@
         </aside>
     </div>
 
-    <!-- MODAL: PRECYZYJNE ALERT / PRZYPOMNIENIA O GODZINIE -->
+    <!-- MODAL: TWORZENIE ZADANIA KANBAN -->
+    <div id="task-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center hidden p-4">
+        <div class="glass-panel max-w-md w-full rounded-2xl p-5 border border-slate-800 space-y-3">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                    <i class="fa-solid fa-tasks text-indigo-400"></i> Przypisz Zadanie Pracownikowi
+                </h3>
+                <button onclick="closeTaskModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <form onsubmit="handleTaskSubmit(event)" class="space-y-3">
+                <input type="hidden" id="task-edit-id">
+                
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Imię i Nazwisko / Pracownik *</label>
+                    <input type="text" id="task-assignee" required placeholder="np. Marcin Kołodziej" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">E-mail lub Link do Chatu</label>
+                    <input type="text" id="task-email" placeholder="email@kalmar.pl lub link z chatu..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Treść Zadania *</label>
+                    <textarea id="task-desc" required rows="2" placeholder="Wpisz dokładny opis zadania..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500 resize-none"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Auto-Wysyłka (Opcjonalnie)</label>
+                    <select id="task-auto-send" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-xs text-slate-100 focus:outline-none">
+                        <option value="none">Nie wysyłaj (Tylko zapisz na tablicy)</option>
+                        <option value="chat">💬 Wyślij na Google Chat po zapisaniu</option>
+                        <option value="email">✉️ Wyślij na Gmail po zapisaniu</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2.5">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Status Zadania</label>
+                        <select id="task-status" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-xs text-slate-100 focus:outline-none">
+                            <option value="todo">Do zrobienia</option>
+                            <option value="progress">W trakcie</option>
+                            <option value="review">Do weryfikacji</option>
+                            <option value="done">Zrobione</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Termin (Deadline)</label>
+                        <input type="date" id="task-deadline" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-xs text-slate-100 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                    <button type="button" onclick="closeTaskModal()" class="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white">Anuluj</button>
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded-xl text-xs font-semibold transition">Zapisz i Wyślij Zadanie</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: ALERT PRZYPOMNIENIA -->
     <div id="reminders-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center hidden p-4">
         <div class="glass-panel max-w-md w-full rounded-2xl p-5 border border-slate-800 space-y-4">
             <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
@@ -291,7 +438,7 @@
         </div>
     </div>
 
-    <!-- MODAL: EDYCJA / DODAWANIE KARTY -->
+    <!-- MODAL: KARTY -->
     <div id="card-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center hidden p-4">
         <div class="glass-panel max-w-lg w-full rounded-2xl p-5 border border-slate-800 shadow-2xl">
             <div class="flex items-center justify-between mb-3 border-b border-slate-800 pb-2.5">
@@ -373,6 +520,9 @@
 
     <!-- JAVASCRIPT ENGINE -->
     <script>
+        // STAŁY ADRES DASHBOARDU NA GITHUBIE DLA PRECYZYJNYCH DEDYKOWANYCH LINKÓW
+        const GITHUB_DASHBOARD_URL = "https://patrickpalacz-dev.github.io/pulpitdaily/";
+
         const defaultCategories = ['HR & Kadry', 'Raporty', 'Aplikacje', 'Finanse'];
         const defaultCards = [{
             id: '1',
@@ -389,8 +539,14 @@
             notes: 'Sprawdzić nowe osoby zgłoszone w tym tygodniu oraz zweryfikować brakujące nieobecności.'
         }];
 
+        const defaultTasks = [
+            { id: 't1', assignee: 'Marcin Kołodziej', email: 'marcin@kalmar.pl', desc: 'Sprawdzić nowo zgłoszonych pracowników w raporcie HR', status: 'progress', deadline: '2026-08-12' },
+            { id: 't2', assignee: 'Anna Nowak', email: 'anna@kalmar.pl', desc: 'Uzupełnić zaległe nieobecności w systemie', status: 'todo', deadline: '2026-08-15' }
+        ];
+
         let categories = JSON.parse(localStorage.getItem('cc_categories')) || defaultCategories;
         let cards = JSON.parse(localStorage.getItem('cc_cards')) || defaultCards;
+        let tasks = JSON.parse(localStorage.getItem('cc_tasks')) || defaultTasks;
         let notes = JSON.parse(localStorage.getItem('cc_notes')) || [{ id: 'n1', text: 'Sprawdzić raport HR do godz 12:00', color: 'note-yellow' }];
         let reminders = JSON.parse(localStorage.getItem('cc_reminders')) || [];
         let stickyOpen = JSON.parse(localStorage.getItem('cc_sticky_open')) ?? true;
@@ -399,11 +555,15 @@
 
         let activeCategory = 'all';
         let activeStatus = 'all';
+        let draggedTaskId = null;
+        let targetWorkerTaskId = null;
 
         document.addEventListener('DOMContentLoaded', () => {
             initClock();
+            checkWorkerDoneUrl();
             renderCategories();
             renderCards();
+            renderTasksKanban();
             renderNotes();
             renderReminders();
             renderCalendarIframe();
@@ -419,6 +579,43 @@
             }
         });
 
+        function getTaskDoneUrl(taskId) {
+            if (window.location.protocol.startsWith('http')) {
+                const baseUrl = window.location.href.split('?')[0];
+                return `${baseUrl}?markDone=${taskId}`;
+            }
+            return `${GITHUB_DASHBOARD_URL}?markDone=${taskId}`;
+        }
+
+        // BEZPIECZNY EKRAN POTWIERDZENIA DLA PRACOWNIKA
+        function checkWorkerDoneUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const markDoneId = urlParams.get('markDone');
+            if(markDoneId) {
+                targetWorkerTaskId = markDoneId;
+                const t = tasks.find(x => x.id === markDoneId);
+                if(t) {
+                    document.getElementById('worker-done-desc').innerText = `Osoba: ${t.assignee}\nOpis: "${t.desc}"`;
+                    document.getElementById('worker-done-screen').classList.remove('hidden');
+                } else {
+                    document.getElementById('worker-done-desc').innerText = `To zadanie zostało już wcześniej oznaczone jako DONE lub usunięte z systemu.`;
+                    document.getElementById('worker-done-screen').classList.remove('hidden');
+                }
+            }
+        }
+
+        function confirmWorkerDoneAction() {
+            if(targetWorkerTaskId) {
+                const t = tasks.find(x => x.id === targetWorkerTaskId);
+                if(t) {
+                    t.status = 'done';
+                    saveAll();
+                }
+                document.getElementById('worker-active-box').classList.add('hidden');
+                document.getElementById('worker-success-box').classList.remove('hidden');
+            }
+        }
+
         function initClock() {
             const updateTime = () => {
                 document.getElementById('clock-display').innerText = new Date().toLocaleDateString('pl-PL', { weekday: 'long', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -430,6 +627,7 @@
         function saveAll() {
             localStorage.setItem('cc_categories', JSON.stringify(categories));
             localStorage.setItem('cc_cards', JSON.stringify(cards));
+            localStorage.setItem('cc_tasks', JSON.stringify(tasks));
             localStorage.setItem('cc_notes', JSON.stringify(notes));
             localStorage.setItem('cc_reminders', JSON.stringify(reminders));
             localStorage.setItem('cc_sticky_open', JSON.stringify(stickyOpen));
@@ -446,7 +644,168 @@
             document.getElementById('reminders-count').innerText = reminders.length;
         }
 
-        // USTAWIANIE OSOBISTEGO KALENDARZA GOOGLE
+        // GOOGLE CHAT BEZPOŚREDNI WYSYŁKA
+        function sendTaskToGoogleChat(id) {
+            const t = tasks.find(x => x.id === id);
+            if(!t) return;
+            
+            const doneUrl = getTaskDoneUrl(t.id);
+            const plainMessage = `📌 ZADANIE DLA TEBIE (${t.assignee}):\nZADANIE: ${t.desc}\nTERMIN: ${t.deadline || 'Brak'}\n\n✅ OZNACZ JAKO GOTOWE (DONE):\n${doneUrl}`;
+            
+            navigator.clipboard.writeText(plainMessage);
+
+            if (t.email) {
+                if (t.email.startsWith('http://') || t.email.startsWith('https://')) {
+                    window.open(t.email, '_blank');
+                } else {
+                    const chatUrl = `https://mail.google.com/chat/u/0/#chat/dm/${encodeURIComponent(t.email)}`;
+                    window.open(chatUrl, '_blank');
+                }
+            } else {
+                window.open('https://chat.google.com', '_blank');
+            }
+
+            alert(`Treść zadania WRAZ Z LINKIEM DLA PRACOWNIKA została skopiowana!\n\nWklej wiadomość (Ctrl + V) w okno rozmowy na Chacie.`);
+        }
+
+        // GMAIL Z HIPERŁĄCZEM HTML (SFORMATOWANY PRZYCISK)
+        function sendTaskEmail(id) {
+            const t = tasks.find(x => x.id === id);
+            if(!t) return;
+
+            const doneUrl = getTaskDoneUrl(t.id);
+            const recipient = (t.email && !t.email.startsWith('http')) ? t.email : '';
+            const subject = encodeURIComponent(`[ZADANIE] ${t.desc.substring(0, 30)}...`);
+            
+            // Formatowanie estetycznej wiadomości z klikalnym linkiem
+            const bodyText = `Cześć ${t.assignee},\n\nPrzypisano Ci nowe zadanie:\n\nZADANIE: ${t.desc}\nTERMIN: ${t.deadline || 'Brak'}\n\n-----------------------------------------\n✅ KLIKNIJ TUTAJ, ABY OZNACZYĆ ZADANIE JAKO GOTOWE:\n${doneUrl}\n-----------------------------------------\n\nPozdrawiam,`;
+            
+            window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(recipient)}&su=${subject}&body=${encodeURIComponent(bodyText)}`, '_blank');
+        }
+
+        // KANBAN DRAG AND DROP
+        function handleTaskDragStart(e, id) {
+            draggedTaskId = id;
+            e.dataTransfer.setData('text/plain', id);
+        }
+
+        function handleKanbanDragOver(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('kanban-col-active');
+        }
+
+        function handleKanbanDragLeave(e) {
+            e.currentTarget.classList.remove('kanban-col-active');
+        }
+
+        function handleKanbanDrop(e, targetStatus) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('kanban-col-active');
+            if (draggedTaskId) {
+                const t = tasks.find(x => x.id === draggedTaskId);
+                if (t) {
+                    t.status = targetStatus;
+                    saveAll();
+                    renderTasksKanban();
+                }
+                draggedTaskId = null;
+            }
+        }
+
+        function renderTasksKanban() {
+            const cols = { todo: document.getElementById('col-todo'), progress: document.getElementById('col-progress'), review: document.getElementById('col-review'), done: document.getElementById('col-done') };
+            const counts = { todo: 0, progress: 0, review: 0, done: 0 };
+
+            Object.values(cols).forEach(c => c.innerHTML = '');
+
+            tasks.forEach(t => {
+                counts[t.status]++;
+                const card = document.createElement('div');
+                card.className = 'bg-slate-950 p-2.5 rounded-xl border border-slate-800 space-y-1.5 shadow relative group text-xs task-card';
+                card.draggable = true;
+                card.ondragstart = (e) => handleTaskDragStart(e, t.id);
+
+                card.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-slate-200 text-[11px] flex items-center gap-1">
+                            <i class="fa-solid fa-grip-vertical text-slate-600 mr-0.5"></i>
+                            <i class="fa-solid fa-user-circle text-indigo-400"></i> ${t.assignee}
+                        </span>
+                        <div class="flex items-center gap-1.5">
+                            <button onclick="sendTaskToGoogleChat('${t.id}')" title="Wyślij treść + Link na Google Chat" class="text-emerald-400 hover:text-emerald-200 p-0.5"><i class="fa-solid fa-comments text-[11px]"></i></button>
+                            <button onclick="sendTaskEmail('${t.id}')" title="Wyślij treść + Link w Gmail" class="text-blue-400 hover:text-blue-200 p-0.5"><i class="fa-solid fa-envelope text-[11px]"></i></button>
+                            <button onclick="deleteTask('${t.id}')" class="text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition p-0.5"><i class="fa-solid fa-xmark text-[11px]"></i></button>
+                        </div>
+                    </div>
+
+                    <p class="text-[11px] text-slate-300 leading-tight">${t.desc}</p>
+
+                    <div class="flex items-center justify-between pt-1 border-t border-slate-900 text-[9px] text-slate-400">
+                        <span><i class="fa-regular fa-clock text-amber-400 mr-0.5"></i> ${t.deadline || 'Brak daty'}</span>
+                        ${t.status !== 'done' ? `<button onclick="markTaskDone('${t.id}')" class="text-emerald-400 hover:underline font-semibold">✅ Oznacz Done</button>` : '<span class="text-emerald-400 font-bold">✅ Done</span>'}
+                    </div>
+                `;
+                if(cols[t.status]) cols[t.status].appendChild(card);
+            });
+
+            document.getElementById('count-todo').innerText = counts.todo;
+            document.getElementById('count-progress').innerText = counts.progress;
+            document.getElementById('count-review').innerText = counts.review;
+            document.getElementById('count-done').innerText = counts.done;
+        }
+
+        function markTaskDone(id) {
+            const t = tasks.find(x => x.id === id);
+            if (t) {
+                t.status = 'done';
+                saveAll();
+                renderTasksKanban();
+            }
+        }
+
+        function openTaskModal() {
+            document.getElementById('task-edit-id').value = '';
+            document.getElementById('task-assignee').value = '';
+            document.getElementById('task-email').value = '';
+            document.getElementById('task-desc').value = '';
+            document.getElementById('task-auto-send').value = 'none';
+            document.getElementById('task-modal').classList.remove('hidden');
+        }
+
+        function closeTaskModal() {
+            document.getElementById('task-modal').classList.add('hidden');
+        }
+
+        function handleTaskSubmit(e) {
+            e.preventDefault();
+            const assignee = document.getElementById('task-assignee').value.trim();
+            const email = document.getElementById('task-email').value.trim();
+            const desc = document.getElementById('task-desc').value.trim();
+            const status = document.getElementById('task-status').value;
+            const deadline = document.getElementById('task-deadline').value;
+            const autoSend = document.getElementById('task-auto-send').value;
+
+            const newTask = { id: Date.now().toString(), assignee, email, desc, status, deadline };
+            tasks.push(newTask);
+            saveAll();
+            renderTasksKanban();
+            closeTaskModal();
+
+            // SZYBKA AUTOMATYCZNA WYSYŁKA JEŚLI WYBRANO W FORMULARZU
+            if (autoSend === 'chat') {
+                sendTaskToGoogleChat(newTask.id);
+            } else if (autoSend === 'email') {
+                sendTaskEmail(newTask.id);
+            }
+        }
+
+        function deleteTask(id) {
+            tasks = tasks.filter(t => t.id !== id);
+            saveAll();
+            renderTasksKanban();
+        }
+
+        // KALENDARZ GOOGLE
         function setCalendarEmail() {
             const email = prompt("Wpisz swój e-mail z konta Google (lub Identyfikator kalendarza):", calendarEmail);
             if (email !== null) {
