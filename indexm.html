@@ -1,0 +1,1299 @@
+<!DOCTYPE html>
+<html lang="pl" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Command Center - Personal Workspace</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkbg: '#080b11',
+                        cardbg: '#141a26',
+                        panelbg: '#1a2233',
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #080b11; color: #f1f5f9; font-family: system-ui, -apple-system, sans-serif; }
+        .glass-panel { background: rgba(20, 26, 38, 0.85); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .glass-card { background: rgba(26, 34, 51, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.06); transition: all 0.2s; }
+        .glass-card:hover { transform: translateY(-2px); background: rgba(26, 34, 51, 0.95); border-color: rgba(59, 130, 246, 0.5); }
+        .drop-zone-active { border-color: #3b82f6 !important; background: rgba(59, 130, 246, 0.15) !important; }
+        
+        .kanban-col-active { background: rgba(99, 102, 241, 0.15) !important; border-color: #6366f1 !important; }
+        .task-card { cursor: grab; }
+        .task-card:active { cursor: grabbing; }
+
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: #080b11; }
+        ::-webkit-scrollbar-thumb { background: #253047; border-radius: 4px; }
+        
+        .note-yellow { background: #3a3212; border: 1px solid #856404; color: #fff3cd; }
+        .note-blue { background: #102a43; border: 1px solid #1b4965; color: #e0f2fe; }
+        .note-green { background: #143224; border: 1px solid #1e5e3a; color: #d1fae5; }
+        .note-purple { background: #2f1c4a; border: 1px solid #5b21b6; color: #f3e8ff; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- BEZPIECZNY EKRAN POTWIERDZENIA ZADANIA DLA PRACOWNIKA (ZERO DOSTĘPU DO DASHBOARDU) -->
+    <div id="worker-done-screen" class="fixed inset-0 bg-slate-950/98 backdrop-blur-2xl z-50 flex items-center justify-center hidden p-4">
+        <div class="glass-panel max-w-md w-full rounded-2xl p-6 border border-emerald-500/30 text-center space-y-4 shadow-2xl relative">
+            <div class="w-14 h-14 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-2xl flex items-center justify-center mx-auto text-2xl">
+                <i class="fa-solid fa-check"></i>
+            </div>
+            
+            <div id="worker-active-box" class="space-y-3">
+                <h3 class="font-bold text-base text-white">Potwierdzenie Wykonania Zadania</h3>
+                <div class="bg-slate-900 border border-slate-800 p-3 rounded-xl text-left">
+                    <span class="text-[10px] text-slate-500 uppercase tracking-wider block font-bold mb-1">Szczegóły Zadania:</span>
+                    <p class="text-xs text-slate-200 font-medium" id="worker-done-desc">Ładowanie opisu zadania...</p>
+                </div>
+                <button onclick="confirmWorkerDoneAction()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs py-3 rounded-xl transition shadow-lg shadow-emerald-600/20">
+                    ✅ Oznacz to zadanie jako GOTOWE (DONE)
+                </button>
+            </div>
+
+            <!-- KOMUNIKAT PO ZATWIERDZENIU -->
+            <div id="worker-success-box" class="hidden space-y-2 py-4">
+                <h3 class="font-bold text-lg text-emerald-400">Dziękujemy!</h3>
+                <p class="text-xs text-slate-300">Zadanie zostało pomyślnie oznaczone jako wykonane w systemie przełożonego.</p>
+                <p class="text-[11px] text-slate-500 pt-2">Możesz bezpiecznie zamknąć tę kartę przeglądarki.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOP HEADER -->
+    <header class="glass-panel sticky top-0 z-40 px-6 py-3 flex items-center justify-between border-b border-slate-800">
+        <div class="flex items-center gap-3">
+            <div class="bg-gradient-to-tr from-blue-600 to-indigo-600 text-white p-2 rounded-xl shadow-lg shadow-blue-500/20">
+                <i class="fa-solid fa-gauge-high text-lg"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-base text-white leading-none tracking-wide">COMMAND CENTER <span class="text-[10px] bg-blue-600/30 text-blue-400 border border-blue-500/30 px-1.5 py-0.5 rounded font-mono ml-1">PRO</span></h1>
+                <p class="text-[11px] text-slate-400 mt-0.5" id="clock-display">Ładowanie daty...</p>
+            </div>
+        </div>
+
+        <!-- SEARCH BAR -->
+        <div class="flex-1 max-w-lg mx-6 relative">
+            <div class="relative flex items-center">
+                <i class="fa-solid fa-magnifying-glass absolute left-3.5 text-slate-400 text-xs"></i>
+                <input type="text" id="search-input" placeholder="Szukaj aplikacji, raportu, notatki (Ctrl + K)..." 
+                    class="w-full pl-10 pr-20 py-1.5 bg-slate-900 border border-slate-700/80 rounded-xl focus:outline-none focus:border-blue-500 text-xs text-slate-200 placeholder-slate-500 transition">
+                <div class="absolute right-2 flex items-center gap-1">
+                    <button id="voice-btn" title="Wyszukiwanie głosowe" class="p-1 text-slate-400 hover:text-blue-400 rounded transition">
+                        <i class="fa-solid fa-microphone text-xs"></i>
+                    </button>
+                    <kbd class="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700">Ctrl K</kbd>
+                </div>
+            </div>
+        </div>
+
+        <!-- PRZYCISKI AKCJI NAGŁÓWKA -->
+        <div class="flex items-center gap-2">
+            <button onclick="openRemindersModal()" class="bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5">
+                <i class="fa-solid fa-bell"></i> Alerty (<span id="reminders-count">0</span>)
+            </button>
+            <button onclick="openCardModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow-md shadow-blue-600/20">
+                <i class="fa-solid fa-plus"></i> Dodaj Kartę
+            </button>
+            <button onclick="openCategoryModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-medium transition flex items-center gap-1">
+                <i class="fa-solid fa-folder-plus text-amber-400"></i> Kategoria
+            </button>
+        </div>
+    </header>
+
+    <div class="flex-1 flex overflow-hidden">
+
+        <!-- LEFT SIDEBAR -->
+        <aside class="w-56 glass-panel border-r border-slate-800 p-3.5 flex flex-col justify-between hidden lg:flex flex-shrink-0">
+            <div class="space-y-5">
+                <!-- GOOGLE WORKSPACE -->
+                <div>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-2">Google Workspace</span>
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <a href="https://chat.google.com" target="_blank" class="p-2 bg-slate-900/80 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs flex items-center gap-2 text-slate-200 font-medium transition">
+                            <i class="fa-solid fa-comments text-emerald-400"></i> Chat
+                        </a>
+                        <a href="https://mail.google.com" target="_blank" class="p-2 bg-slate-900/80 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs flex items-center gap-2 text-slate-200 font-medium transition">
+                            <i class="fa-solid fa-envelope text-red-400"></i> Gmail
+                        </a>
+                        <a href="https://calendar.google.com" target="_blank" class="p-2 bg-slate-900/80 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs flex items-center gap-2 text-slate-200 font-medium transition">
+                            <i class="fa-solid fa-calendar-days text-blue-400"></i> Kalendarz
+                        </a>
+                        <a href="https://drive.google.com" target="_blank" class="p-2 bg-slate-900/80 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs flex items-center gap-2 text-slate-200 font-medium transition">
+                            <i class="fa-solid fa-hard-drive text-amber-400"></i> Dysk
+                        </a>
+                    </div>
+                </div>
+
+                <!-- KATEGORIE -->
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Kategorie</span>
+                        <button onclick="openCategoryModal()" class="text-slate-500 hover:text-blue-400 text-xs"><i class="fa-solid fa-plus"></i></button>
+                    </div>
+                    <nav class="space-y-1" id="sidebar-categories"></nav>
+                </div>
+            </div>
+
+            <!-- STATYSTYKI -->
+            <div class="pt-3 border-t border-slate-800/80 text-[10px] text-slate-500 space-y-1 font-mono">
+                <div class="flex justify-between"><span>Suma kart:</span> <span id="stat-total-cards" class="text-slate-300">0</span></div>
+                <div class="flex justify-between"><span>Suma kliknięć:</span> <span id="stat-total-clicks" class="text-slate-300">0</span></div>
+            </div>
+        </aside>
+
+        <!-- MAIN WORKSPACE -->
+        <main class="flex-1 overflow-y-auto p-5 space-y-6">
+
+            <!-- PORANNA RUTYNA -->
+            <section class="glass-panel rounded-2xl p-3.5 border border-slate-800 bg-gradient-to-r from-blue-950/30 via-slate-900 to-indigo-950/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-amber-500/10 text-amber-400 rounded-xl border border-amber-500/20">
+                        <i class="fa-solid fa-sun text-lg"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-xs text-white flex items-center gap-2">
+                            Poranna Rutyna Pracy 
+                            <span class="text-[9px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded-full border border-amber-500/30 font-medium">Auto-Start</span>
+                        </h2>
+                        <p class="text-[11px] text-slate-400">Otwórz wszystkie poranne raporty jednocześnie w osobnych kartach.</p>
+                    </div>
+                </div>
+                <button onclick="runMorningRoutine()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-md shadow-amber-500/20 whitespace-nowrap">
+                    <i class="fa-solid fa-rocket"></i> Uruchom Rutynę (<span id="routine-count">0</span>)
+                </button>
+            </section>
+
+            <!-- DROP ZONE -->
+            <div id="drop-zone" class="border-2 border-dashed border-slate-800 hover:border-blue-500/60 rounded-xl p-2.5 text-center transition cursor-pointer bg-slate-900/30">
+                <p class="text-[11px] text-slate-400 font-medium flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-cloud-arrow-up text-blue-400"></i> 
+                    Przeciągnij i upuść link z przeglądarki, aby utworzyć kartę
+                </p>
+            </div>
+
+            <!-- FILTRY STATUSÓW I SORTOWANIE -->
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div class="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0" id="status-filters">
+                    <button onclick="filterStatus('all')" class="status-btn active-status bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-medium transition">Wszystkie</button>
+                    <button onclick="filterStatus('Wymaga akcji')" class="status-btn bg-slate-800 text-slate-400 hover:text-white px-3 py-1 rounded-lg text-xs font-medium transition">⚠️ Wymaga akcji</button>
+                    <button onclick="filterStatus('W trakcie')" class="status-btn bg-slate-800 text-slate-400 hover:text-white px-3 py-1 rounded-lg text-xs font-medium transition">🔄 W trakcie</button>
+                    <button onclick="filterStatus('Gotowe')" class="status-btn bg-slate-800 text-slate-400 hover:text-white px-3 py-1 rounded-lg text-xs font-medium transition">✅ Gotowe</button>
+                </div>
+                <div class="flex items-center gap-2 text-xs text-slate-400 self-end sm:self-auto">
+                    <label for="sort-select" class="whitespace-nowrap"><i class="fa-solid fa-arrow-down-wide-short text-blue-400"></i> Sortuj:</label>
+                    <select id="sort-select" onchange="renderCards()" class="bg-slate-900 border border-slate-700/80 rounded-lg px-2 py-1 text-slate-200 text-xs focus:outline-none">
+                        <option value="clicks">Najczęściej używane</option>
+                        <option value="recent">Ostatnio otwierane</option>
+                        <option value="priority">Priorytet</option>
+                        <option value="title">Nazwa (A-Z)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- GRID KART RAPORTÓW -->
+            <section id="cards-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4"></section>
+
+            <!-- TABLICA KANBAN DLA PRACOWNIKÓW -->
+            <section class="pt-6 border-t border-slate-800/80 space-y-3">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-flipboard text-indigo-400 text-sm"></i>
+                        <h3 class="font-bold text-xs uppercase tracking-wider text-slate-200">Kanban Zadań Pracowników</h3>
+                    </div>
+                    <button onclick="openTaskModal()" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded-lg font-medium transition flex items-center gap-1 shadow-md shadow-indigo-600/20">
+                        <i class="fa-solid fa-plus"></i> Przypisz Zadanie
+                    </button>
+                </div>
+
+                <!-- KOLUMNY KANBAN DRAG & DROP -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                    
+                    <!-- TO DO -->
+                    <div class="bg-slate-900/60 rounded-xl border border-slate-800/80 p-2.5 flex flex-col space-y-2 kanban-drop-col" data-status="todo" ondragover="handleKanbanDragOver(event)" ondragleave="handleKanbanDragLeave(event)" ondrop="handleKanbanDrop(event, 'todo')">
+                        <div class="flex items-center justify-between pb-1 border-b border-slate-800 text-[11px] font-bold text-slate-300">
+                            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-slate-400"></span> Do zrobienia</span>
+                            <span id="count-todo" class="bg-slate-800 px-1.5 py-0.2 rounded text-[10px] font-mono text-slate-400">0</span>
+                        </div>
+                        <div id="col-todo" class="space-y-2 flex-1 min-h-[140px]"></div>
+                    </div>
+
+                    <!-- IN PROGRESS -->
+                    <div class="bg-slate-900/60 rounded-xl border border-slate-800/80 p-2.5 flex flex-col space-y-2 kanban-drop-col" data-status="progress" ondragover="handleKanbanDragOver(event)" ondragleave="handleKanbanDragLeave(event)" ondrop="handleKanbanDrop(event, 'progress')">
+                        <div class="flex items-center justify-between pb-1 border-b border-slate-800 text-[11px] font-bold text-amber-300">
+                            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-400"></span> W trakcie</span>
+                            <span id="count-progress" class="bg-slate-800 px-1.5 py-0.2 rounded text-[10px] font-mono text-slate-400">0</span>
+                        </div>
+                        <div id="col-progress" class="space-y-2 flex-1 min-h-[140px]"></div>
+                    </div>
+
+                    <!-- REVIEW -->
+                    <div class="bg-slate-900/60 rounded-xl border border-slate-800/80 p-2.5 flex flex-col space-y-2 kanban-drop-col" data-status="review" ondragover="handleKanbanDragOver(event)" ondragleave="handleKanbanDragLeave(event)" ondrop="handleKanbanDrop(event, 'review')">
+                        <div class="flex items-center justify-between pb-1 border-b border-slate-800 text-[11px] font-bold text-purple-300">
+                            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-purple-400"></span> Do weryfikacji</span>
+                            <span id="count-review" class="bg-slate-800 px-1.5 py-0.2 rounded text-[10px] font-mono text-slate-400">0</span>
+                        </div>
+                        <div id="col-review" class="space-y-2 flex-1 min-h-[140px]"></div>
+                    </div>
+
+                    <!-- DONE -->
+                    <div class="bg-slate-900/60 rounded-xl border border-slate-800/80 p-2.5 flex flex-col space-y-2 kanban-drop-col" data-status="done" ondragover="handleKanbanDragOver(event)" ondragleave="handleKanbanDragLeave(event)" ondrop="handleKanbanDrop(event, 'done')">
+                        <div class="flex items-center justify-between pb-1 border-b border-slate-800 text-[11px] font-bold text-emerald-300">
+                            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> Zrobione</span>
+                            <span id="count-done" class="bg-slate-800 px-1.5 py-0.2 rounded text-[10px] font-mono text-slate-400">0</span>
+                        </div>
+                        <div id="col-done" class="space-y-2 flex-1 min-h-[140px]"></div>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- CHOWANE STICKY NOTES -->
+            <section class="pt-6 border-t border-slate-800/80">
+                <div class="flex items-center justify-between mb-3">
+                    <button onclick="toggleStickyNotes()" class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-300 hover:text-white transition">
+                        <i class="fa-solid fa-note-sticky text-amber-400"></i> 
+                        <span>Sticky Notes</span>
+                        <i id="sticky-chevron" class="fa-solid fa-chevron-down text-slate-500 text-[10px] ml-1"></i>
+                    </button>
+                    <button onclick="addStickyNote()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-2.5 py-1 rounded-lg font-medium transition flex items-center gap-1">
+                        <i class="fa-solid fa-plus text-amber-400"></i> Dodaj notatkę
+                    </button>
+                </div>
+                <div id="sticky-notes-container" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3"></div>
+            </section>
+
+        </main>
+
+        <!-- RIGHT SIDEBAR -->
+        <aside class="w-80 glass-panel border-l border-slate-800 p-3.5 flex flex-col justify-between hidden xl:flex flex-shrink-0 overflow-y-auto space-y-4">
+            
+            <!-- SZYBKI MAIL -->
+            <div class="bg-slate-900/90 rounded-xl border border-slate-800 p-3 space-y-2">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
+                        <i class="fa-solid fa-paper-plane text-blue-400"></i> Szybka Wiadomość Mail
+                    </span>
+                </div>
+                <input type="email" id="quick-email-to" placeholder="Odbiorca (np. jan@kalmar.pl)..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:border-blue-500">
+                <input type="text" id="quick-email-subject" placeholder="Temat wiadomości..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:border-blue-500">
+                <textarea id="quick-email-body" rows="2" placeholder="Treść..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:border-blue-500 resize-none"></textarea>
+                <button onclick="sendQuickEmail()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded-lg font-semibold transition flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-envelope"></i> Otwórz w Gmail
+                </button>
+            </div>
+
+            <!-- PODGLĄD GOOGLE KALENDARZA Z OPCJĄ USTAWENIA E-MAILA -->
+            <div class="bg-slate-900/90 rounded-xl border border-slate-800 p-2.5 space-y-2 flex-1 flex flex-col min-h-[200px]">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
+                        <i class="fa-solid fa-calendar-days text-amber-400"></i> Google Kalendarz
+                    </span>
+                    <div class="flex items-center gap-2">
+                        <button onclick="setCalendarEmail()" class="text-[10px] text-amber-400 hover:underline"><i class="fa-solid fa-gear"></i> Ustaw e-mail</button>
+                        <a href="https://calendar.google.com" target="_blank" class="text-[10px] text-blue-400 hover:underline"><i class="fa-solid fa-arrow-up-right-from-square"></i> Otwórz</a>
+                    </div>
+                </div>
+                <div class="flex-1 rounded-lg overflow-hidden border border-slate-800 relative bg-slate-950">
+                    <iframe id="calendar-iframe" src="" class="w-full h-full border-none"></iframe>
+                </div>
+            </div>
+
+            <!-- ASYSTENT AI -->
+            <div class="bg-gradient-to-br from-purple-950/40 to-slate-900 border border-purple-500/30 rounded-xl p-3 space-y-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                        <i class="fa-solid fa-robot text-purple-400"></i> Asystent AI
+                    </span>
+                    <button onclick="setApiKeyPrompt()" class="text-[9px] text-purple-400 hover:underline"><i class="fa-solid fa-key"></i> Klucz API</button>
+                </div>
+                
+                <textarea id="ai-prompt" rows="2" placeholder="Zapytaj o cokolwiek, napisz 'godzina', 'pogoda' lub wklej notatki..." class="w-full bg-slate-950 border border-purple-900/50 rounded-lg p-2 text-xs text-slate-200 focus:outline-none focus:border-purple-500 resize-none"></textarea>
+                
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button onclick="runAIAssistant()" class="bg-purple-700 hover:bg-purple-600 text-white text-[10px] py-1.5 rounded-lg font-semibold transition flex items-center justify-center gap-1">
+                        <i class="fa-solid fa-paper-plane"></i> Zapytaj AI
+                    </button>
+                    <button onclick="processAIText('list')" class="bg-purple-900/60 hover:bg-purple-800 border border-purple-500/30 text-purple-200 text-[10px] py-1.5 rounded-lg font-medium transition">
+                        📋 Zrób Listę
+                    </button>
+                </div>
+
+                <div id="ai-output" class="hidden text-[11px] bg-slate-950 p-2 rounded-lg border border-purple-900/40 text-purple-200 max-h-32 overflow-y-auto font-mono whitespace-pre-wrap leading-relaxed"></div>
+            </div>
+
+        </aside>
+    </div>
+
+    <!-- MODAL: TWORZENIE ZADANIA KANBAN -->
+    <div id="task-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center hidden p-4">
+        <div class="glass-panel max-w-md w-full rounded-2xl p-5 border border-slate-800 space-y-3">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                    <i class="fa-solid fa-tasks text-indigo-400"></i> Przypisz Zadanie Pracownikowi
+                </h3>
+                <button onclick="closeTaskModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <form onsubmit="handleTaskSubmit(event)" class="space-y-3">
+                <input type="hidden" id="task-edit-id">
+                
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Imię i Nazwisko / Pracownik *</label>
+                    <input type="text" id="task-assignee" required placeholder="np. Marcin Kołodziej" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">E-mail lub Link do Chatu</label>
+                    <input type="text" id="task-email" placeholder="email@kalmar.pl lub link z chatu..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Treść Zadania *</label>
+                    <textarea id="task-desc" required rows="2" placeholder="Wpisz dokładny opis zadania..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500 resize-none"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Auto-Wysyłka (Opcjonalnie)</label>
+                    <select id="task-auto-send" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-xs text-slate-100 focus:outline-none">
+                        <option value="none">Nie wysyłaj (Tylko zapisz na tablicy)</option>
+                        <option value="chat">💬 Wyślij na Google Chat po zapisaniu</option>
+                        <option value="email">✉️ Wyślij na Gmail po zapisaniu</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2.5">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Status Zadania</label>
+                        <select id="task-status" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-xs text-slate-100 focus:outline-none">
+                            <option value="todo">Do zrobienia</option>
+                            <option value="progress">W trakcie</option>
+                            <option value="review">Do weryfikacji</option>
+                            <option value="done">Zrobione</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Termin (Deadline)</label>
+                        <input type="date" id="task-deadline" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-xs text-slate-100 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                    <button type="button" onclick="closeTaskModal()" class="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white">Anuluj</button>
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded-xl text-xs font-semibold transition">Zapisz i Wyślij Zadanie</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: ALERT PRZYPOMNIENIA -->
+    <div id="reminders-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center hidden p-4">
+        <div class="glass-panel max-w-md w-full rounded-2xl p-5 border border-slate-800 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                    <i class="fa-solid fa-bell text-amber-400"></i> Ustaw Przypomnienie / Alert
+                </h3>
+                <button onclick="closeRemindersModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <form onsubmit="handleAddReminder(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs text-slate-300 mb-1 font-semibold">Wybierz Raport / Aplikację (Opcjonalnie)</label>
+                    <select id="reminder-card-select" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none">
+                        <option value="">-- Ogólne przypomnienie --</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs text-slate-300 mb-1 font-semibold">Treść Powiadomienia *</label>
+                    <input type="text" id="reminder-text" required placeholder="np. Sprawdzić nieobecności w HR!" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs text-slate-300 mb-1 font-semibold">Dokładna Godzina Alertu *</label>
+                    <input type="time" id="reminder-time" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500">
+                </div>
+
+                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs py-2 rounded-xl transition">
+                    <i class="fa-solid fa-clock"></i> Zapisz Alert
+                </button>
+            </form>
+
+            <div class="pt-2 border-t border-slate-800 space-y-2">
+                <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Aktywne Alerty na Dziś:</span>
+                <div id="reminders-list" class="space-y-1.5 max-h-36 overflow-y-auto"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: KARTY -->
+    <div id="card-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center hidden p-4">
+        <div class="glass-panel max-w-lg w-full rounded-2xl p-5 border border-slate-800 shadow-2xl">
+            <div class="flex items-center justify-between mb-3 border-b border-slate-800 pb-2.5">
+                <h3 class="font-bold text-sm text-white" id="modal-card-title">Dodaj Kartę</h3>
+                <button onclick="closeCardModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-base"></i></button>
+            </div>
+            <form id="card-form" onsubmit="handleCardSubmit(event)" class="space-y-3">
+                <input type="hidden" id="edit-card-id">
+                
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Nazwa Aplikacji / Raportu *</label>
+                    <input type="text" id="card-title" required placeholder="np. Kalmar HR - Weryfikacja Pracowników" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-blue-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Adres URL *</label>
+                    <input type="url" id="card-url" required placeholder="https://..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-blue-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Prześlij plik graficzny (Screen z dysku)</label>
+                    <input type="file" id="card-file-input" accept="image/*" onchange="handleFileUpload(event)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-1 text-xs text-slate-400 focus:outline-none">
+                    <input type="hidden" id="card-img-custom">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Notatki / Instrukcje Robocze</label>
+                    <textarea id="card-notes" rows="2" placeholder="Wpisz numery ID, procedurę lub przypomnienie..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-blue-500 resize-none"></textarea>
+                </div>
+
+                <div class="grid grid-cols-3 gap-2.5">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Kategoria</label>
+                        <select id="card-category" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-blue-500"></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Status</label>
+                        <select id="card-status" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-blue-500">
+                            <option value="Brak">Brak</option>
+                            <option value="Wymaga akcji">⚠️ Wymaga akcji</option>
+                            <option value="W trakcie">🔄 W trakcie</option>
+                            <option value="Gotowe">✅ Gotowe</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Priorytet</label>
+                        <select id="card-priority" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-blue-500">
+                            <option value="1">Niski</option>
+                            <option value="2">Średni</option>
+                            <option value="3">Wysoki 🔥</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 pt-1">
+                    <input type="checkbox" id="card-routine" class="rounded border-slate-700 bg-slate-900 text-blue-600 focus:ring-blue-500">
+                    <label for="card-routine" class="text-xs text-slate-300">Dodaj do Porannej Rutyny</label>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                    <button type="button" onclick="closeCardModal()" class="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white transition">Anuluj</button>
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded-xl text-xs font-semibold transition">Zapisz Kartę</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: KATEGORIE -->
+    <div id="category-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center hidden p-4">
+        <div class="glass-panel max-w-sm w-full rounded-2xl p-4 border border-slate-800 space-y-3">
+            <h3 class="font-bold text-sm text-white">Dodaj nową kategorię</h3>
+            <input type="text" id="new-cat-name" placeholder="Nazwa kategorii..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-blue-500">
+            <div class="flex justify-end gap-2">
+                <button onclick="closeCategoryModal()" class="px-3 py-1 text-xs text-slate-400 hover:text-white">Anuluj</button>
+                <button onclick="saveNewCategory()" class="bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-1 rounded-lg text-xs font-semibold transition">Dodaj</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT ENGINE -->
+    <script>
+        // STAŁY ADRES DASHBOARDU NA GITHUBIE DLA PRECYZYJNYCH DEDYKOWANYCH LINKÓW
+        const GITHUB_DASHBOARD_URL = "https://patrickpalacz-dev.github.io/pulpitdaily/";
+
+        const defaultCategories = ['HR & Kadry', 'Raporty', 'Aplikacje', 'Finanse'];
+        const defaultCards = [{
+            id: '1',
+            title: 'Kalmar HR - Weryfikacja Pracowników',
+            url: 'https://kalmar.wtms-one.pl/prd/hr.php?checkNewWorkers=1&checkNotRegAbs=1',
+            imageUrl: '',
+            category: 'HR & Kadry',
+            priority: 3,
+            status: 'Wymaga akcji',
+            clicks: 1,
+            lastOpened: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
+            inRoutine: true,
+            notes: 'Sprawdzić nowe osoby zgłoszone w tym tygodniu oraz zweryfikować brakujące nieobecności.'
+        }];
+
+        const defaultTasks = [
+            { id: 't1', assignee: 'Marcin Kołodziej', email: 'marcin@kalmar.pl', desc: 'Sprawdzić nowo zgłoszonych pracowników w raporcie HR', status: 'progress', deadline: '2026-08-12' },
+            { id: 't2', assignee: 'Anna Nowak', email: 'anna@kalmar.pl', desc: 'Uzupełnić zaległe nieobecności w systemie', status: 'todo', deadline: '2026-08-15' }
+        ];
+
+        let categories = JSON.parse(localStorage.getItem('cc_categories')) || defaultCategories;
+        let cards = JSON.parse(localStorage.getItem('cc_cards')) || defaultCards;
+        let tasks = JSON.parse(localStorage.getItem('cc_tasks')) || defaultTasks;
+        let notes = JSON.parse(localStorage.getItem('cc_notes')) || [{ id: 'n1', text: 'Sprawdzić raport HR do godz 12:00', color: 'note-yellow' }];
+        let reminders = JSON.parse(localStorage.getItem('cc_reminders')) || [];
+        let stickyOpen = JSON.parse(localStorage.getItem('cc_sticky_open')) ?? true;
+        let apiKey = localStorage.getItem('cc_api_key') || '';
+        let calendarEmail = localStorage.getItem('cc_cal_email') || '';
+
+        let activeCategory = 'all';
+        let activeStatus = 'all';
+        let draggedTaskId = null;
+        let targetWorkerTaskId = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initClock();
+            checkWorkerDoneUrl();
+            renderCategories();
+            renderCards();
+            renderTasksKanban();
+            renderNotes();
+            renderReminders();
+            renderCalendarIframe();
+            setupDragAndDrop();
+            setupSearch();
+            setupVoiceSearch();
+            updateStats();
+            applyStickyState();
+
+            setInterval(checkRemindersLoop, 10000);
+            if ("Notification" in window && Notification.permission === "default") {
+                Notification.requestPermission();
+            }
+        });
+
+        function getTaskDoneUrl(taskId) {
+            if (window.location.protocol.startsWith('http')) {
+                const baseUrl = window.location.href.split('?')[0];
+                return `${baseUrl}?markDone=${taskId}`;
+            }
+            return `${GITHUB_DASHBOARD_URL}?markDone=${taskId}`;
+        }
+
+        // BEZPIECZNY EKRAN POTWIERDZENIA DLA PRACOWNIKA
+        function checkWorkerDoneUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const markDoneId = urlParams.get('markDone');
+            if(markDoneId) {
+                targetWorkerTaskId = markDoneId;
+                const t = tasks.find(x => x.id === markDoneId);
+                if(t) {
+                    document.getElementById('worker-done-desc').innerText = `Osoba: ${t.assignee}\nOpis: "${t.desc}"`;
+                    document.getElementById('worker-done-screen').classList.remove('hidden');
+                } else {
+                    document.getElementById('worker-done-desc').innerText = `To zadanie zostało już wcześniej oznaczone jako DONE lub usunięte z systemu.`;
+                    document.getElementById('worker-done-screen').classList.remove('hidden');
+                }
+            }
+        }
+
+        function confirmWorkerDoneAction() {
+            if(targetWorkerTaskId) {
+                const t = tasks.find(x => x.id === targetWorkerTaskId);
+                if(t) {
+                    t.status = 'done';
+                    saveAll();
+                }
+                document.getElementById('worker-active-box').classList.add('hidden');
+                document.getElementById('worker-success-box').classList.remove('hidden');
+            }
+        }
+
+        function initClock() {
+            const updateTime = () => {
+                document.getElementById('clock-display').innerText = new Date().toLocaleDateString('pl-PL', { weekday: 'long', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            };
+            updateTime();
+            setInterval(updateTime, 1000);
+        }
+
+        function saveAll() {
+            localStorage.setItem('cc_categories', JSON.stringify(categories));
+            localStorage.setItem('cc_cards', JSON.stringify(cards));
+            localStorage.setItem('cc_tasks', JSON.stringify(tasks));
+            localStorage.setItem('cc_notes', JSON.stringify(notes));
+            localStorage.setItem('cc_reminders', JSON.stringify(reminders));
+            localStorage.setItem('cc_sticky_open', JSON.stringify(stickyOpen));
+            localStorage.setItem('cc_api_key', apiKey);
+            localStorage.setItem('cc_cal_email', calendarEmail);
+            updateStats();
+        }
+
+        function updateStats() {
+            document.getElementById('stat-total-cards').innerText = cards.length;
+            const totalClicks = cards.reduce((acc, curr) => acc + (curr.clicks || 0), 0);
+            document.getElementById('stat-total-clicks').innerText = totalClicks;
+            document.getElementById('routine-count').innerText = cards.filter(c => c.inRoutine).length;
+            document.getElementById('reminders-count').innerText = reminders.length;
+        }
+
+        // GOOGLE CHAT BEZPOŚREDNI WYSYŁKA
+        function sendTaskToGoogleChat(id) {
+            const t = tasks.find(x => x.id === id);
+            if(!t) return;
+            
+            const doneUrl = getTaskDoneUrl(t.id);
+            const plainMessage = `📌 ZADANIE DLA TEBIE (${t.assignee}):\nZADANIE: ${t.desc}\nTERMIN: ${t.deadline || 'Brak'}\n\n✅ OZNACZ JAKO GOTOWE (DONE):\n${doneUrl}`;
+            
+            navigator.clipboard.writeText(plainMessage);
+
+            if (t.email) {
+                if (t.email.startsWith('http://') || t.email.startsWith('https://')) {
+                    window.open(t.email, '_blank');
+                } else {
+                    const chatUrl = `https://mail.google.com/chat/u/0/#chat/dm/${encodeURIComponent(t.email)}`;
+                    window.open(chatUrl, '_blank');
+                }
+            } else {
+                window.open('https://chat.google.com', '_blank');
+            }
+
+            alert(`Treść zadania WRAZ Z LINKIEM DLA PRACOWNIKA została skopiowana!\n\nWklej wiadomość (Ctrl + V) w okno rozmowy na Chacie.`);
+        }
+
+        // GMAIL Z HIPERŁĄCZEM HTML (SFORMATOWANY PRZYCISK)
+        function sendTaskEmail(id) {
+            const t = tasks.find(x => x.id === id);
+            if(!t) return;
+
+            const doneUrl = getTaskDoneUrl(t.id);
+            const recipient = (t.email && !t.email.startsWith('http')) ? t.email : '';
+            const subject = encodeURIComponent(`[ZADANIE] ${t.desc.substring(0, 30)}...`);
+            
+            // Formatowanie estetycznej wiadomości z klikalnym linkiem
+            const bodyText = `Cześć ${t.assignee},\n\nPrzypisano Ci nowe zadanie:\n\nZADANIE: ${t.desc}\nTERMIN: ${t.deadline || 'Brak'}\n\n-----------------------------------------\n✅ KLIKNIJ TUTAJ, ABY OZNACZYĆ ZADANIE JAKO GOTOWE:\n${doneUrl}\n-----------------------------------------\n\nPozdrawiam,`;
+            
+            window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(recipient)}&su=${subject}&body=${encodeURIComponent(bodyText)}`, '_blank');
+        }
+
+        // KANBAN DRAG AND DROP
+        function handleTaskDragStart(e, id) {
+            draggedTaskId = id;
+            e.dataTransfer.setData('text/plain', id);
+        }
+
+        function handleKanbanDragOver(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('kanban-col-active');
+        }
+
+        function handleKanbanDragLeave(e) {
+            e.currentTarget.classList.remove('kanban-col-active');
+        }
+
+        function handleKanbanDrop(e, targetStatus) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('kanban-col-active');
+            if (draggedTaskId) {
+                const t = tasks.find(x => x.id === draggedTaskId);
+                if (t) {
+                    t.status = targetStatus;
+                    saveAll();
+                    renderTasksKanban();
+                }
+                draggedTaskId = null;
+            }
+        }
+
+        function renderTasksKanban() {
+            const cols = { todo: document.getElementById('col-todo'), progress: document.getElementById('col-progress'), review: document.getElementById('col-review'), done: document.getElementById('col-done') };
+            const counts = { todo: 0, progress: 0, review: 0, done: 0 };
+
+            Object.values(cols).forEach(c => c.innerHTML = '');
+
+            tasks.forEach(t => {
+                counts[t.status]++;
+                const card = document.createElement('div');
+                card.className = 'bg-slate-950 p-2.5 rounded-xl border border-slate-800 space-y-1.5 shadow relative group text-xs task-card';
+                card.draggable = true;
+                card.ondragstart = (e) => handleTaskDragStart(e, t.id);
+
+                card.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-slate-200 text-[11px] flex items-center gap-1">
+                            <i class="fa-solid fa-grip-vertical text-slate-600 mr-0.5"></i>
+                            <i class="fa-solid fa-user-circle text-indigo-400"></i> ${t.assignee}
+                        </span>
+                        <div class="flex items-center gap-1.5">
+                            <button onclick="sendTaskToGoogleChat('${t.id}')" title="Wyślij treść + Link na Google Chat" class="text-emerald-400 hover:text-emerald-200 p-0.5"><i class="fa-solid fa-comments text-[11px]"></i></button>
+                            <button onclick="sendTaskEmail('${t.id}')" title="Wyślij treść + Link w Gmail" class="text-blue-400 hover:text-blue-200 p-0.5"><i class="fa-solid fa-envelope text-[11px]"></i></button>
+                            <button onclick="deleteTask('${t.id}')" class="text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition p-0.5"><i class="fa-solid fa-xmark text-[11px]"></i></button>
+                        </div>
+                    </div>
+
+                    <p class="text-[11px] text-slate-300 leading-tight">${t.desc}</p>
+
+                    <div class="flex items-center justify-between pt-1 border-t border-slate-900 text-[9px] text-slate-400">
+                        <span><i class="fa-regular fa-clock text-amber-400 mr-0.5"></i> ${t.deadline || 'Brak daty'}</span>
+                        ${t.status !== 'done' ? `<button onclick="markTaskDone('${t.id}')" class="text-emerald-400 hover:underline font-semibold">✅ Oznacz Done</button>` : '<span class="text-emerald-400 font-bold">✅ Done</span>'}
+                    </div>
+                `;
+                if(cols[t.status]) cols[t.status].appendChild(card);
+            });
+
+            document.getElementById('count-todo').innerText = counts.todo;
+            document.getElementById('count-progress').innerText = counts.progress;
+            document.getElementById('count-review').innerText = counts.review;
+            document.getElementById('count-done').innerText = counts.done;
+        }
+
+        function markTaskDone(id) {
+            const t = tasks.find(x => x.id === id);
+            if (t) {
+                t.status = 'done';
+                saveAll();
+                renderTasksKanban();
+            }
+        }
+
+        function openTaskModal() {
+            document.getElementById('task-edit-id').value = '';
+            document.getElementById('task-assignee').value = '';
+            document.getElementById('task-email').value = '';
+            document.getElementById('task-desc').value = '';
+            document.getElementById('task-auto-send').value = 'none';
+            document.getElementById('task-modal').classList.remove('hidden');
+        }
+
+        function closeTaskModal() {
+            document.getElementById('task-modal').classList.add('hidden');
+        }
+
+        function handleTaskSubmit(e) {
+            e.preventDefault();
+            const assignee = document.getElementById('task-assignee').value.trim();
+            const email = document.getElementById('task-email').value.trim();
+            const desc = document.getElementById('task-desc').value.trim();
+            const status = document.getElementById('task-status').value;
+            const deadline = document.getElementById('task-deadline').value;
+            const autoSend = document.getElementById('task-auto-send').value;
+
+            const newTask = { id: Date.now().toString(), assignee, email, desc, status, deadline };
+            tasks.push(newTask);
+            saveAll();
+            renderTasksKanban();
+            closeTaskModal();
+
+            // SZYBKA AUTOMATYCZNA WYSYŁKA JEŚLI WYBRANO W FORMULARZU
+            if (autoSend === 'chat') {
+                sendTaskToGoogleChat(newTask.id);
+            } else if (autoSend === 'email') {
+                sendTaskEmail(newTask.id);
+            }
+        }
+
+        function deleteTask(id) {
+            tasks = tasks.filter(t => t.id !== id);
+            saveAll();
+            renderTasksKanban();
+        }
+
+        // KALENDARZ GOOGLE
+        function setCalendarEmail() {
+            const email = prompt("Wpisz swój e-mail z konta Google (lub Identyfikator kalendarza):", calendarEmail);
+            if (email !== null) {
+                calendarEmail = email.trim();
+                saveAll();
+                renderCalendarIframe();
+            }
+        }
+
+        function renderCalendarIframe() {
+            const iframe = document.getElementById('calendar-iframe');
+            if (calendarEmail) {
+                iframe.src = `https://calendar.google.com/calendar/embed?src=${encodeURIComponent(calendarEmail)}&mode=AGENDA&showTitle=0&showNav=0&showDate=1&showPrint=0&showTabs=0&showCalendars=0&showTz=0`;
+            } else {
+                iframe.src = `https://calendar.google.com/calendar/embed?mode=AGENDA&showTitle=0&showNav=0&showDate=1&showPrint=0&showTabs=0&showCalendars=0&showTz=0`;
+            }
+        }
+
+        // ASYSTENT AI
+        function setApiKeyPrompt() {
+            const key = prompt("Wklej swój klucz API (np. OpenAI / Gemini):", apiKey);
+            if (key !== null) {
+                apiKey = key.trim();
+                saveAll();
+                alert(apiKey ? "Zapisano klucz API!" : "Usunięto klucz API.");
+            }
+        }
+
+        function runAIAssistant() {
+            const input = document.getElementById('ai-prompt').value.trim();
+            const output = document.getElementById('ai-output');
+
+            if (!input) return alert('Wpisz zapytanie dla AI!');
+
+            output.classList.remove('hidden');
+            const lower = input.toLowerCase();
+
+            if (lower.includes('godzina') || lower.includes('czas') || lower.includes('data')) {
+                const now = new Date();
+                output.innerText = `⏰ CZAS I DATA:\nGodzina: ${now.toLocaleTimeString('pl-PL')}\nData: ${now.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}`;
+            } 
+            else if (lower.includes('pogoda')) {
+                output.innerText = `🌤️ POGODA:\nLokalizacja: Polska\nTemperatura: ~21°C\nWarunki: Słonecznie, umiarkowane zachmurzenie.`;
+            }
+            else if (apiKey) {
+                output.innerText = "🤖 Łączenie z modelem AI...";
+                fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                    body: JSON.stringify({ model: 'gpt-3.5-turbo', messages: [{ role: 'user', content: input }] })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    output.innerText = data.choices[0].message.content;
+                })
+                .catch(err => {
+                    output.innerText = "❌ Błąd API: Sprawdź swój klucz API w opcjach.";
+                });
+            } else {
+                output.innerText = `🤖 ODPOWIEDŹ ASYSTENTA:\nPrzetworzono: "${input}"\n\n💡 Wskazówka: Aby AI odpowiadało jak pełny ChatGPT, kliknij 'Klucz API' w prawym górnym rogu modułu i wklej swój klucz.`;
+            }
+        }
+
+        function processAIText(type) {
+            const input = document.getElementById('ai-prompt').value.trim();
+            const output = document.getElementById('ai-output');
+
+            if (!input) return alert('Wpisz tekst do zformatowania!');
+
+            output.classList.remove('hidden');
+            const lines = input.split('\n').filter(l => l.trim() !== '');
+
+            if (type === 'list') {
+                output.innerText = "📋 LISTA ZADAŃ:\n" + lines.map((line, i) => `[ ] ${i + 1}. ${line.trim()}`).join('\n');
+            }
+        }
+
+        // PĘTLA ALERTÓW
+        function checkRemindersLoop() {
+            const now = new Date();
+            const currentHM = now.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+
+            reminders.forEach(r => {
+                if (r.time === currentHM && !r.triggered) {
+                    r.triggered = true;
+                    saveAll();
+                    
+                    if ("Notification" in window && Notification.permission === "granted") {
+                        new Notification("⏰ ALERT RAPORTOWY", { body: r.text });
+                    } else {
+                        alert(`⏰ ALERT RAPORTOWY (${r.time}):\n${r.text}`);
+                    }
+                    renderReminders();
+                }
+            });
+        }
+
+        function openRemindersModal() {
+            const select = document.getElementById('reminder-card-select');
+            select.innerHTML = '<option value="">-- Ogólne przypomnienie --</option>';
+            cards.forEach(c => { select.innerHTML += `<option value="${c.title}">${c.title}</option>`; });
+            renderReminders();
+            document.getElementById('reminders-modal').classList.remove('hidden');
+        }
+
+        function closeRemindersModal() {
+            document.getElementById('reminders-modal').classList.add('hidden');
+        }
+
+        function handleAddReminder(e) {
+            e.preventDefault();
+            const cardTitle = document.getElementById('reminder-card-select').value;
+            const text = document.getElementById('reminder-text').value.trim();
+            const time = document.getElementById('reminder-time').value;
+
+            const fullText = cardTitle ? `[${cardTitle}] ${text}` : text;
+
+            reminders.push({ id: Date.now().toString(), text: fullText, time, triggered: false });
+            saveAll();
+            renderReminders();
+            document.getElementById('reminder-text').value = '';
+            alert(`Ustawiono alert na godzinę ${time}!`);
+        }
+
+        function renderReminders() {
+            const container = document.getElementById('reminders-list');
+            container.innerHTML = '';
+            if(reminders.length === 0) {
+                container.innerHTML = '<p class="text-[10px] text-slate-500 italic text-center py-2">Brak aktywnych alertów.</p>';
+                return;
+            }
+            reminders.forEach(r => {
+                container.innerHTML += `
+                    <div class="flex items-center justify-between p-2 rounded-lg ${r.triggered ? 'bg-slate-950/50 opacity-60' : 'bg-slate-900 border border-slate-800'} text-xs">
+                        <div class="flex items-center gap-2">
+                            <span class="font-mono text-[10px] font-bold bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/30">${r.time}</span>
+                            <span class="text-slate-200 text-[11px] line-clamp-1">${r.text}</span>
+                        </div>
+                        <button onclick="deleteReminder('${r.id}')" class="text-slate-500 hover:text-red-400 p-0.5"><i class="fa-solid fa-trash text-[10px]"></i></button>
+                    </div>
+                `;
+            });
+        }
+
+        function deleteReminder(id) {
+            reminders = reminders.filter(r => r.id !== id);
+            saveAll();
+            renderReminders();
+        }
+
+        function sendQuickEmail() {
+            const to = document.getElementById('quick-email-to').value.trim();
+            const subject = encodeURIComponent(document.getElementById('quick-email-subject').value.trim());
+            const body = encodeURIComponent(document.getElementById('quick-email-body').value.trim());
+
+            if (!to) return alert('Wpisz adres e-mail odbiorcy!');
+            window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${subject}&body=${body}`, '_blank');
+        }
+
+        function renderCategories() {
+            const container = document.getElementById('sidebar-categories');
+            const selectContainer = document.getElementById('card-category');
+            
+            container.innerHTML = `
+                <button onclick="filterCategory('all')" class="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center justify-between transition ${activeCategory === 'all' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}">
+                    <span><i class="fa-solid fa-layer-group mr-2"></i> Wszystkie</span>
+                    <span class="text-[10px] opacity-80">${cards.length}</span>
+                </button>
+            `;
+
+            selectContainer.innerHTML = '';
+
+            categories.forEach((cat, index) => {
+                const count = cards.filter(c => c.category === cat).length;
+                const isActive = activeCategory === cat;
+                
+                container.innerHTML += `
+                    <div class="flex items-center justify-between group rounded-lg ${isActive ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'} px-2.5 py-1.5 transition">
+                        <button onclick="filterCategory('${cat}')" class="flex-1 text-left text-xs font-medium flex items-center truncate">
+                            <i class="fa-solid fa-folder text-amber-400 mr-2"></i> ${cat} (${count})
+                        </button>
+                        <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                            <button onclick="editCategory(${index})" class="text-slate-300 hover:text-amber-400 text-xs p-1" title="Zmień nazwę"><i class="fa-solid fa-pen"></i></button>
+                            <button onclick="deleteCategory(${index})" class="text-slate-300 hover:text-red-400 text-xs p-1" title="Usuń kategorię"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                    </div>
+                `;
+
+                selectContainer.innerHTML += `<option value="${cat}">${cat}</option>`;
+            });
+        }
+
+        function filterCategory(cat) { activeCategory = cat; renderCategories(); renderCards(); }
+        function filterStatus(st) { activeStatus = st; renderCards(); }
+
+        function changeCardStatus(id, newStatus) {
+            const card = cards.find(c => c.id === id);
+            if (card) { card.status = newStatus; saveAll(); renderCards(); }
+        }
+
+        function renderCards() {
+            const grid = document.getElementById('cards-grid');
+            const searchVal = document.getElementById('search-input').value.toLowerCase();
+            const sortBy = document.getElementById('sort-select').value;
+
+            grid.innerHTML = '';
+
+            let filtered = cards.filter(card => {
+                const matchesCategory = activeCategory === 'all' || card.category === activeCategory;
+                const matchesStatus = activeStatus === 'all' || card.status === activeStatus;
+                const matchesSearch = card.title.toLowerCase().includes(searchVal) || card.url.toLowerCase().includes(searchVal) || (card.notes && card.notes.toLowerCase().includes(searchVal));
+                return matchesCategory && matchesStatus && matchesSearch;
+            });
+
+            filtered.sort((a, b) => {
+                if (sortBy === 'clicks') return (b.clicks || 0) - (a.clicks || 0);
+                if (sortBy === 'priority') return (b.priority || 0) - (a.priority || 0);
+                if (sortBy === 'recent') return new Date(b.lastOpened || 0) - new Date(a.lastOpened || 0);
+                if (sortBy === 'title') return a.title.localeCompare(b.title);
+            });
+
+            if (filtered.length === 0) {
+                grid.innerHTML = `<div class="col-span-full text-center py-10 text-slate-500 text-xs border border-dashed border-slate-800 rounded-2xl">Brak zapisanych kart w tej sekcji.</div>`;
+                return;
+            }
+
+            filtered.forEach(card => {
+                const domain = getDomain(card.url);
+                const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+                const lastOpenedFormatted = card.lastOpened ? new Date(card.lastOpened).toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Nigdy';
+
+                const previewImg = card.imageUrl || `https://api.microlink.io/?url=${encodeURIComponent(card.url)}&screenshot=true&embed=screenshot.url`;
+
+                const cardEl = document.createElement('div');
+                cardEl.className = 'glass-card rounded-2xl overflow-hidden flex flex-col justify-between group relative';
+                
+                cardEl.innerHTML = `
+                    <div>
+                        <div class="relative h-36 bg-slate-950 overflow-hidden border-b border-slate-800">
+                            <img src="${previewImg}" class="w-full h-full object-cover object-center opacity-85 group-hover:scale-105 transition duration-300" onerror="this.src='https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=600&q=80'">
+                            <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-black/40"></div>
+                            
+                            <div class="absolute top-2 left-2 flex items-center gap-1.5">
+                                <div class="w-6 h-6 rounded-lg bg-slate-900/90 border border-slate-700 flex items-center justify-center p-1 backdrop-blur-md">
+                                    <img src="${faviconUrl}" class="w-full h-full object-contain">
+                                </div>
+                                <span class="text-[9px] bg-slate-900/90 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700 font-medium">${card.category}</span>
+                            </div>
+
+                            <div class="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                                <button onclick="editCard('${card.id}')" class="bg-slate-900/90 text-amber-400 p-1 rounded-lg border border-slate-700 hover:bg-slate-800"><i class="fa-solid fa-pen text-[10px]"></i></button>
+                                <button onclick="deleteCard('${card.id}')" class="bg-slate-900/90 text-red-400 p-1 rounded-lg border border-slate-700 hover:bg-slate-800"><i class="fa-solid fa-trash-can text-[10px]"></i></button>
+                            </div>
+                        </div>
+
+                        <div class="p-3 space-y-2">
+                            <h3 class="font-bold text-slate-100 text-xs group-hover:text-blue-400 transition truncate">${card.title}</h3>
+                            <p class="text-[11px] text-slate-300 italic line-clamp-2 leading-tight">${card.notes || 'Brak wprowadzonych notatek.'}</p>
+                            
+                            <div class="pt-1 flex items-center gap-1.5 flex-wrap">
+                                <select onchange="changeCardStatus('${card.id}', this.value)" class="bg-slate-900 border border-slate-700 text-[10px] rounded px-1.5 py-0.5 text-slate-200 focus:outline-none cursor-pointer">
+                                    <option value="Brak" ${card.status === 'Brak' ? 'selected' : ''}>Status: Brak</option>
+                                    <option value="Wymaga akcji" ${card.status === 'Wymaga akcji' ? 'selected' : ''}>⚠️ Wymaga akcji</option>
+                                    <option value="W trakcie" ${card.status === 'W trakcie' ? 'selected' : ''}>🔄 W trakcie</option>
+                                    <option value="Gotowe" ${card.status === 'Gotowe' ? 'selected' : ''}>✅ Gotowe</option>
+                                </select>
+
+                                ${card.priority == 3 ? '<span class="text-[9px] bg-red-500/10 text-red-400 border border-red-500/20 px-1.5 py-0.5 rounded font-medium">🔥 Wysoki</span>' : ''}
+                                ${card.inRoutine ? '<span class="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded font-medium"><i class="fa-solid fa-sun text-[8px]"></i> Rutyna</span>' : ''}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="px-3 py-2 border-t border-slate-800/80 bg-slate-950/40 flex items-center justify-between text-[10px] text-slate-400">
+                        <div>
+                            <span><i class="fa-solid fa-chart-line text-blue-400"></i> ${card.clicks || 0}</span>
+                            <span class="ml-1.5 text-[9px] text-slate-500">${lastOpenedFormatted}</span>
+                        </div>
+                        <a href="${card.url}" target="_blank" onclick="trackClick('${card.id}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1 text-[11px]">
+                            Otwórz <i class="fa-solid fa-arrow-up-right-from-square text-[8px]"></i>
+                        </a>
+                    </div>
+                `;
+                grid.appendChild(cardEl);
+            });
+        }
+
+        function getDomain(url) { try { return new URL(url).hostname.replace('www.', ''); } catch(e) { return 'link'; } }
+
+        function trackClick(id) {
+            const card = cards.find(c => c.id === id);
+            if (card) {
+                card.clicks = (card.clicks || 0) + 1;
+                card.lastOpened = new Date().toISOString();
+                saveAll();
+                setTimeout(renderCards, 300);
+            }
+        }
+
+        function runMorningRoutine() {
+            const routineCards = cards.filter(c => c.inRoutine);
+            if (routineCards.length === 0) return alert('Brak kart przypisanych do porannej rutyny!');
+            routineCards.forEach(card => { trackClick(card.id); window.open(card.url, '_blank'); });
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('card-img-custom').value = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function setupDragAndDrop() {
+            const dropZone = document.getElementById('drop-zone');
+            ['dragenter', 'dragover'].forEach(eName => dropZone.addEventListener(eName, (e) => { e.preventDefault(); dropZone.classList.add('drop-zone-active'); }));
+            ['dragleave', 'drop'].forEach(eName => dropZone.addEventListener(eName, (e) => { e.preventDefault(); dropZone.classList.remove('drop-zone-active'); }));
+
+            dropZone.addEventListener('drop', (e) => {
+                const textData = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
+                if (textData && (textData.startsWith('http://') || textData.startsWith('https://'))) {
+                    cards.push({
+                        id: Date.now().toString(),
+                        title: getDomain(textData),
+                        url: textData,
+                        imageUrl: '',
+                        category: categories[0] || 'Raporty',
+                        priority: 2,
+                        status: 'Brak',
+                        clicks: 0,
+                        lastOpened: null,
+                        createdAt: new Date().toISOString(),
+                        inRoutine: false,
+                        notes: 'Przeciągnięty link.'
+                    });
+                    saveAll(); renderCategories(); renderCards();
+                }
+            });
+        }
+
+        function toggleStickyNotes() {
+            stickyOpen = !stickyOpen;
+            saveAll();
+            applyStickyState();
+        }
+
+        function applyStickyState() {
+            const container = document.getElementById('sticky-notes-container');
+            const chevron = document.getElementById('sticky-chevron');
+            if (stickyOpen) {
+                container.classList.remove('hidden');
+                chevron.classList.replace('fa-chevron-right', 'fa-chevron-down');
+            } else {
+                container.classList.add('hidden');
+                chevron.classList.replace('fa-chevron-down', 'fa-chevron-right');
+            }
+        }
+
+        function renderNotes() {
+            const container = document.getElementById('sticky-notes-container');
+            container.innerHTML = '';
+            notes.forEach(note => {
+                const noteEl = document.createElement('div');
+                noteEl.className = `${note.color} p-2.5 rounded-xl border flex flex-col justify-between text-xs min-h-[90px]`;
+                noteEl.innerHTML = `
+                    <textarea onblur="updateNoteText('${note.id}', this.value)" class="bg-transparent w-full resize-none focus:outline-none font-medium h-14 text-xs leading-tight">${note.text}</textarea>
+                    <div class="flex items-center justify-between pt-1 border-t border-black/20 text-[9px]">
+                        <div class="flex gap-1">
+                            <button onclick="changeNoteColor('${note.id}', 'note-yellow')" class="w-2.5 h-2.5 rounded-full bg-amber-400"></button>
+                            <button onclick="changeNoteColor('${note.id}', 'note-blue')" class="w-2.5 h-2.5 rounded-full bg-blue-400"></button>
+                            <button onclick="changeNoteColor('${note.id}', 'note-green')" class="w-2.5 h-2.5 rounded-full bg-emerald-400"></button>
+                            <button onclick="changeNoteColor('${note.id}', 'note-purple')" class="w-2.5 h-2.5 rounded-full bg-purple-400"></button>
+                        </div>
+                        <button onclick="deleteNote('${note.id}')" class="text-red-400 hover:text-red-200"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                `;
+                container.appendChild(noteEl);
+            });
+        }
+
+        function addStickyNote() { 
+            if (!stickyOpen) { stickyOpen = true; applyStickyState(); }
+            notes.push({ id: Date.now().toString(), text: 'Nowa notatka...', color: 'note-yellow' }); 
+            saveAll(); renderNotes(); 
+        }
+        function updateNoteText(id, text) { const n = notes.find(x => x.id === id); if(n) { n.text = text; saveAll(); } }
+        function changeNoteColor(id, color) { const n = notes.find(x => x.id === id); if(n) { n.color = color; saveAll(); renderNotes(); } }
+        function deleteNote(id) { notes = notes.filter(x => x.id !== id); saveAll(); renderNotes(); }
+
+        function editCategory(index) {
+            const currentName = categories[index];
+            const newName = prompt('Zmień nazwę kategorii:', currentName);
+            if (newName && newName.trim() !== '') {
+                categories[index] = newName.trim();
+                saveAll(); renderCategories(); renderCards();
+            }
+        }
+
+        function deleteCategory(index) {
+            if(confirm(`Czy na pewno chcesz usunąć kategorię "${categories[index]}"?`)) {
+                categories.splice(index, 1);
+                saveAll(); renderCategories(); renderCards();
+            }
+        }
+
+        function setupSearch() {
+            document.getElementById('search-input').addEventListener('input', renderCards);
+            document.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); document.getElementById('search-input').focus(); } });
+        }
+
+        function setupVoiceSearch() {
+            const voiceBtn = document.getElementById('voice-btn');
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (SpeechRecognition) {
+                const rec = new SpeechRecognition(); rec.lang = 'pl-PL';
+                voiceBtn.addEventListener('click', () => rec.start());
+                rec.onresult = (e) => { document.getElementById('search-input').value = e.results[0][0].transcript; renderCards(); };
+            }
+        }
+
+        function openCardModal() { document.getElementById('edit-card-id').value = ''; document.getElementById('card-form').reset(); document.getElementById('card-modal').classList.remove('hidden'); }
+        function closeCardModal() { document.getElementById('card-modal').classList.add('hidden'); }
+
+        function editCard(id) {
+            const card = cards.find(c => c.id === id);
+            if (!card) return;
+            document.getElementById('edit-card-id').value = card.id;
+            document.getElementById('card-title').value = card.title;
+            document.getElementById('card-url').value = card.url;
+            document.getElementById('card-img-custom').value = card.imageUrl || '';
+            document.getElementById('card-notes').value = card.notes || '';
+            document.getElementById('card-category').value = card.category;
+            document.getElementById('card-status').value = card.status || 'Brak';
+            document.getElementById('card-priority').value = card.priority || 1;
+            document.getElementById('card-routine').checked = !!card.inRoutine;
+            document.getElementById('card-modal').classList.remove('hidden');
+        }
+
+        function handleCardSubmit(e) {
+            e.preventDefault();
+            const editId = document.getElementById('edit-card-id').value;
+            if (editId) {
+                const card = cards.find(c => c.id === editId);
+                if (card) {
+                    card.title = document.getElementById('card-title').value;
+                    card.url = document.getElementById('card-url').value;
+                    card.imageUrl = document.getElementById('card-img-custom').value;
+                    card.notes = document.getElementById('card-notes').value;
+                    card.category = document.getElementById('card-category').value;
+                    card.status = document.getElementById('card-status').value;
+                    card.priority = parseInt(document.getElementById('card-priority').value);
+                    card.inRoutine = document.getElementById('card-routine').checked;
+                }
+            } else {
+                cards.push({
+                    id: Date.now().toString(),
+                    title: document.getElementById('card-title').value,
+                    url: document.getElementById('card-url').value,
+                    imageUrl: document.getElementById('card-img-custom').value,
+                    notes: document.getElementById('card-notes').value,
+                    category: document.getElementById('card-category').value,
+                    status: document.getElementById('card-status').value,
+                    priority: parseInt(document.getElementById('card-priority').value),
+                    inRoutine: document.getElementById('card-routine').checked,
+                    clicks: 0,
+                    lastOpened: null,
+                    createdAt: new Date().toISOString()
+                });
+            }
+            saveAll(); renderCategories(); renderCards(); closeCardModal();
+        }
+
+        function deleteCard(id) {
+            if (confirm('Usunąć tę kartę?')) {
+                cards = cards.filter(c => c.id !== id);
+                saveAll(); renderCategories(); renderCards();
+            }
+        }
+
+        function openCategoryModal() { document.getElementById('category-modal').classList.remove('hidden'); }
+        function closeCategoryModal() { document.getElementById('category-modal').classList.add('hidden'); }
+        function saveNewCategory() {
+            const v = document.getElementById('new-cat-name').value.trim();
+            if (v && !categories.includes(v)) { categories.push(v); saveAll(); renderCategories(); closeCategoryModal(); }
+        }
+    </script>
+</body>
+</html>
